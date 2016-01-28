@@ -25,40 +25,40 @@ class RayTracer {
 		// if there's no intersection return black or background color
 		if (!sphere) return Vec3f(2);
 		Vec3f surfaceColor = 0; // color of the ray/surfaceof the object intersected by the ray 
-		Vec3f phit = ray.origin + ray.dir * tNear; // point of intersection
-		Vec3f nhit = phit - sphere->center; // normal at the intersection point 
-		nhit.normalize(); // normalize normal direction 
+		Vec3f point = ray.origin + ray.dir * tNear; // point of intersection
+		Vec3f normal = point - sphere->center; // normal at the intersection point 
+		normal.normalize(); // normalize normal direction 
 		// if the normal and the view direction are not opposite to each other, reverse the normal direction
 		float bias = 1e-4; // add some bias to the point from which we'll be tracing 
 		bool inside = false;
-		if (dot(ray.dir, nhit) > 0) {
-			nhit = -nhit;
+		if (dot(ray.dir, normal) > 0) {
+			normal = -normal;
 			inside = true;
 		}
 
 		Vec3f colorAtPoint = sphere->surfaceColor;
 		if (sphere->texture) {
-			auto spherical = toSpherical(sphere->center, phit);
+			auto spherical = toSpherical(sphere->center, point);
 			auto coor = sphere->texture->fromUV(toUV(spherical));
 			colorAtPoint = (*sphere->texture)[coor.second][coor.first];
 		}
 
 		if ((sphere->transparency > 0 || sphere->reflection > 0) && depth < MAX_RAY_DEPTH) {
-			float facingRatio = -dot(ray.dir, nhit);
+			float facingRatio = -dot(ray.dir, normal);
 			float fresnelEffect = mix(pow(1 - facingRatio, 3), 1, 0.1); // mix value may be changed
 			// compute reflection direction
 			// (not need to normalize because all vectors are already normalized) 
-			Vec3f reflDir = ray.dir - nhit * 2 * dot(ray.dir, nhit);
-			Vec3f reflection = trace({ phit + nhit * bias, reflDir.normalize() }, depth + 1);
+			Vec3f reflDir = ray.dir - normal * 2 * dot(ray.dir, normal);
+			Vec3f reflection = trace({ point + normal * bias, reflDir.normalize() }, depth + 1);
 			Vec3f refraction = 0;
 			// if the sphere is also transparent compute refraction ray (transmission)
 			if (sphere->transparency) {
 				float ior = 1.1;
 				float eta = inside ? ior : 1 / ior; // are we inside or outside the surface? 
-				float cosi = -dot(nhit, ray.dir);
+				float cosi = -dot(normal, ray.dir);
 				float k = 1 - eta * eta * (1 - cosi * cosi);
-				Vec3f reflDir = ray.dir * eta + nhit * (eta *  cosi - sqrt(k));
-				refraction = trace({ phit - nhit * bias, reflDir.normalize() }, depth + 1);
+				Vec3f reflDir = ray.dir * eta + normal * (eta *  cosi - sqrt(k));
+				refraction = trace({ point - normal * bias, reflDir.normalize() }, depth + 1);
 			}
 			// the result is a mix of reflection and refraction (if the sphere is transparent)
 			surfaceColor = (
@@ -70,17 +70,17 @@ class RayTracer {
 				if (s.emissionColor.x > 0) {
 					// this is a light
 					Vec3f transmission = 1;
-					Vec3f lightDirection = s.center - phit;
+					Vec3f lightDirection = s.center - point;
 					lightDirection.normalize();
 					for (auto& s2 : spheres) {
 						if (&s == &s2) continue;
-						if (s2.intersect({ phit + nhit * bias, lightDirection }) > 0) {
+						if (s2.intersect({ point + normal * bias, lightDirection }) > 0) {
 							transmission = 0;
 							break;
 						}
 					}
 					surfaceColor += colorAtPoint * transmission *
-						std::max(0.0f, dot(nhit, lightDirection)) * s.emissionColor;
+						std::max(0.0f, dot(normal, lightDirection)) * s.emissionColor;
 				}
 			}
 		}
