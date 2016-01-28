@@ -28,11 +28,8 @@ class RayTracer {
 		Vec3f phit = ray.origin + ray.dir * tNear; // point of intersection
 		Vec3f nhit = phit - sphere->center; // normal at the intersection point 
 		nhit.normalize(); // normalize normal direction 
-						  // If the normal and the view direction are not opposite to each other
-						  // reverse the normal direction. That also means we are inside the sphere so set
-						  // the inside bool to true. Finally reverse the sign of IdotN which we want
-						  // positive.
-		float bias = 1e-4; // add some bias to the point from which we will be tracing 
+		// if the normal and the view direction are not opposite to each other, reverse the normal direction
+		float bias = 1e-4; // add some bias to the point from which we'll be tracing 
 		bool inside = false;
 		if (dot(ray.dir, nhit) > 0) {
 			nhit = -nhit;
@@ -43,16 +40,14 @@ class RayTracer {
 		if (sphere->texture) {
 			auto spherical = toSpherical(sphere->center, phit);
 			auto coor = sphere->texture->fromUV(toUV(spherical));
-			auto a = (*sphere->texture)[coor.second];
-			colorAtPoint = a[coor.first];
+			colorAtPoint = (*sphere->texture)[coor.second][coor.first];
 		}
 
 		if ((sphere->transparency > 0 || sphere->reflection > 0) && depth < MAX_RAY_DEPTH) {
 			float facingRatio = -dot(ray.dir, nhit);
-			// change the mix value to tweak the effect
-			float fresnelEffect = mix(pow(1 - facingRatio, 3), 1, 0.1);
-			// compute reflection direction (not need to normalize because all vectors
-			// are already normalized)
+			float fresnelEffect = mix(pow(1 - facingRatio, 3), 1, 0.1); // mix value may be changed
+			// compute reflection direction
+			// (not need to normalize because all vectors are already normalized) 
 			Vec3f reflDir = ray.dir - nhit * 2 * dot(ray.dir, nhit);
 			Vec3f reflection = trace({ phit + nhit * bias, reflDir.normalize() }, depth + 1);
 			Vec3f refraction = 0;
@@ -90,6 +85,7 @@ class RayTracer {
 			}
 		}
 
+		// finally, return the resulting pixel's color
 		return surfaceColor + sphere->emissionColor;
 	}
 
@@ -97,47 +93,7 @@ public:
 
 	RayTracer(const std::vector<Sphere>& spheres) : spheres(spheres) {}
 
-	/**
-		antialiasing: 0 - none, 1 - multisampling, >1 - supersampling
-	*/
-	void render(size_t width, size_t height, const std::string& filepath, size_t antialiasing) {
-		if (antialiasing > 1) {
-			width *= antialiasing;
-			height *= antialiasing;
-		} else if (antialiasing) {
-			++width;
-			++height;
-		}
-		VecOfVecs<Vec3f> image(height, std::vector<Vec3f>(width));
-		float invWidth = 1 / float(width),
-			invHeight = 1 / float(height);
-		float fov = 30,
-			aspectRatio = width / float(height);
-		float angle = tan(M_PI * 0.5 * fov / 180.);
-		// Trace rays
-		for (unsigned y = 0; y < height; ++y) {
-			for (unsigned x = 0; x < width; ++x) {
-				float xx = (2 * ((x + 0.5) * invWidth) - 1) * angle * aspectRatio;
-				float yy = (1 - 2 * ((y + 0.5) * invHeight)) * angle;
-				image[y][x] = trace({ Vec3f(0), Vec3f(xx, yy, -1).normalize() }, 0);
-			}
-		}
-		// Save result to a PPM image (keep these flags if you compile under Windows)
-		std::ofstream ofs(filepath, std::ios::out | std::ios::binary);
-		if (!ofs) {
-			std::cerr << "Bad stream" << std::endl;
-		}
-		if (antialiasing > 1) {
-			renderSupersampled(ofs, image, antialiasing);
-		} else if (antialiasing) {
-			renderMultisampled(ofs, image);
-		} else {
-			renderNormal(ofs, image);
-		}
-		ofs.close();
-	}
-
-	void renderPNG(size_t width, size_t height, const std::string& filepath) {
+	void render(size_t width, size_t height, const std::string& filepath) {
 		VecOfVecs<Vec3f> image(height, std::vector<Vec3f>(width));
 		float invWidth = 1 / float(width),
 			invHeight = 1 / float(height);

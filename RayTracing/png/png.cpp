@@ -1,4 +1,4 @@
-#include "stdafx.h"
+
 /*
 LodePNG version 20160124
 
